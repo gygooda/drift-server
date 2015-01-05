@@ -1,4 +1,7 @@
 drift-server
 ============
 
-c++ server backend
+C++ server backend
+
+1. Requirement
+  iglibs
