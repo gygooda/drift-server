@@ -1,7 +1,7 @@
-SUBDIRS = src utils
+SUBDIRS = src utils conf
 
 topscriptdir = $(prefix)/
 topscript_SCRIPTS = drift-server.sh
 
-serviceconfdir = $(prefix)/conf
-serviceconf_DATA = conf/drift-server.conf
+EXTRA_DIST = README.md LICENSE \
+			 drift-server.sh

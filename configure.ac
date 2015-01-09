@@ -25,5 +25,6 @@ AC_CHECK_FUNCS([memset])
 
 AC_CONFIG_FILES([Makefile
                  utils/Makefile
+                 conf/Makefile
                  src/Makefile])
 AC_OUTPUT
