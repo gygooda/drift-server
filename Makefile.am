@@ -1,3 +1,7 @@
-SUBDIRS = src
+SUBDIRS = src utils
 
-dist_doc_DATA = README.md LICENSE
+topscriptdir = $(prefix)/
+topscript_SCRIPTS = drift-server.sh
+
+serviceconfdir = $(prefix)/conf
+serviceconf_DATA = conf/drift-server.conf
