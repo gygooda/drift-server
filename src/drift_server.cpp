@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../../ig-libs/config.h"
+#include "dconf.h"
 #include "log.h"
 #include "daemon.h"
 #include "drift_server.h"
@@ -23,12 +23,12 @@ static volatile sig_atomic_t g_restart = 1; // 第一次启动时restart为1，�
 
 bool stop_process()
 {
-    return (g_stop != 0);
+    return (g_stop == 1);
 }
 
 bool restart_all_threads()
 {
-    return (g_restart != 0);
+    return (g_restart == 1);
 }
 
 static inline void reset_restart_flag()
@@ -83,23 +83,23 @@ static int setup_signal_handlers()
 
 static void init_log()
 {
-    std::string str = "drift-server.log";
-    str = IG_CONFIG.get("log-file", str);
-    IG_LOGGER.set_file_name(str.c_str());
+    const char* str = "drift-server.log";
+    LOGGER.set_file_name(CONFIG.get("log-file", str));
 
     str = "INFO";
-    str = IG_CONFIG.get("log-level", str);
-    IG_LOGGER.set_log_level(str.c_str());
+    LOGGER.set_log_level(CONFIG.get("log-level", str));
+
+    LOGGER.set_max_file_size(CONFIG.get("log-max-size", 64 * 1024 * 1024));
 }
 
 static bool init_config(const char* config_path)
 {
-    return IG_CONFIG.load(config_path, true);
+    return CONFIG.load(config_path, true);
 }
 
 static int set_rlimit()
 {
-    struct rlimit rl = {0};
+    struct rlimit rl = {0,0};
     int ret = 0;
 
     do
@@ -136,10 +136,9 @@ static int set_rlimit()
 
 static int check_single()
 {
-    std::string str = "daemon.pid";
-    str = IG_CONFIG.get("daemon-lock", str);
+    const char* str = CONFIG.get("daemon-lock", "daemon.pid");
 
-    if(LibSys::daemon_lock(str.c_str()) < 0)
+    if(LibSys::daemon_lock(str) < 0)
         return -1;
 
     return 0;
@@ -147,7 +146,7 @@ static int check_single()
 
 static inline void print_usage()
 {
-    printf("\t drift-agent <config-file>\n");
+    printf("usage: drift-server <config-file>\n");
 }
 
 int main(int argc, char* argv[])
@@ -161,7 +160,7 @@ int main(int argc, char* argv[])
     if(!init_config(argv[1]))
     {
         // log module is not inited, so use fprintf.
-        fprintf(stderr, "\tread configurations from %s failed. exiting...\n", argv[1]);
+        fprintf(stderr, "\tread configurations from %s failed, exiting...\n", argv[1]);
         return 1;
     }
 
@@ -169,37 +168,40 @@ int main(int argc, char* argv[])
 
     if(setup_signal_handlers() < 0)
     {
-        IG_LOG(ERROR, "setup signal handlers failed."); 
+        LOG(ERROR, "setup signal handlers failed, exiting..."); 
         return 1;
     }
 
     if(set_rlimit() < 0)
     {
-        IG_LOG(ERROR, "get/set rlimit failed.");
+        LOG(ERROR, "get/set rlimit failed, exiting...");
         return 1;
     }
 
     // 需要产生core文件，所以不需要改变路径。
-    // IG_LOGGER默认会将0，1，2定位到日志里面，所以这里不需要关闭0,1,2。
+    // LOGGER默认会将0，1，2定位到日志里面，所以这里不需要关闭0,1,2。
     if(LibSys::daemonize(1, 1) < 0)
     {
-        IG_LOG(ERROR, "daemonize failed.");
+        LOG(ERROR, "daemonize failed, exiting...");
         return 1;
     }
 
     if(check_single() < 0)
     {
-        IG_LOG(ERROR, "another process already running.");
+        LOG(ERROR, "another process already running, exiting...");
         return 2;
     }
 
     sigset_t sigs;
     sigemptyset(&sigs);
 
+    LOG(INFO, "main thread starting...");
+
     do
     {
         if(restart_all_threads())
         {
+            // 启动所有工作线程
         }
 
         reset_restart_flag();
@@ -208,10 +210,11 @@ int main(int argc, char* argv[])
 
         if(restart_all_threads() || stop_process())
         {
+            // 关闭所有工作线程
         }
     }
     while(!stop_process());
 
-    IG_LOG(INFO, "main thread exited.");
+    LOG(INFO, "main thread exited.");
     return 0;
 }
